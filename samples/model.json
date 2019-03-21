@@ -1,0 +1,73 @@
+{
+  "project": {
+    "vr": false,
+    "version": 1.0
+  },
+  "nodes": [{
+    "uuid": "37437e8e-8de0-41a1-a9de-877918360dcb",
+    "name": "Root",
+    "scale": [1.0, 1.0, 1.0],
+    "position": [0.0, 0.0, 0.0],
+    "rotation": [0.0, 0.0, 0.0, 1.0]
+  }, {
+    "uuid": "5d31d454-5a96-4861-8686-93c108c5c2fc",
+    "name": "Model",
+    "scale": [1.0, 1.0, 1.0],
+    "position": [0.0, 0.0, 0.0],
+    "rotation": [0.0, 0.0, 0.0, 1.0],
+    "components": {
+      "model": {
+        "asset": 1000
+      }
+    }
+  }],
+  "models": [{
+    "id": 1000,
+    "nodes": [{
+      "name": "Cube.obj",
+      "scale": [1.0, 1.0, 1.0],
+      "position": [0.0, 0.0, 0.0],
+      "rotation": [0.0, 0.0, 0.0, 1.0],
+      "children": [1]
+    }, {
+      "name": "cube",
+      "scale": [1.0, 1.0, 1.0],
+      "position": [0.0, 0.0, 0.0],
+      "rotation": [0.0, 0.0, 0.0, 1.0],
+      "aabb": {
+        "max": [0.224135, 3.92665, 2.05863],
+        "min": [-0.224135, -0.000431925, -2.10874]
+      },
+      "vertices": {
+        "index": {
+          "components": 3,
+          "offset": 8080,
+          "length": 300
+        },
+        "position": {
+          "components": 3,
+          "offset": 8080,
+          "length": 300
+        },
+        "normal": {
+          "components": 3,
+          "offset": 8080,
+          "length": 300
+        },
+        "uv": {
+          "components": 3,
+          "offset": 8080,
+          "length": 300
+        }
+      }
+    }]
+  }],
+  "assets": [{
+    "id": 1000,
+    "type": "model",
+    "data": {
+      "model": 1000,
+      "mapping": [{"material": 18306769}, {"material": 18306772}]
+    }
+  }]
+}
