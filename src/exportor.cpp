@@ -7,28 +7,6 @@ using namespace rapidjson;
 namespace Model2Json
 {
 
-    static void ParserTextureName(const char* str, string& filename)
-    {
-        filename = str;
-        int pos = filename.rfind("\\");
-        if (pos == -1)
-        {
-            pos = filename.rfind("/");
-        }
-        filename.replace(0, pos + 1, "");
-    }
-
-    static void WriteTextureBinary(aiTexture* texture)
-    {
-        string filename;
-        ParserTextureName(texture->mFilename.C_Str(), filename);
-        auto* data = reinterpret_cast<uint8_t*>(texture->pcData);
-        fstream out(filename, ios::out | ios::binary);
-        out.write((char*) data, texture->mWidth);
-        out.close();
-    }
-
-
     JsonExporter::JsonExporter(string filename)
         : filename(filename + ".json")
         , mBin(filename + ".bin", ios::out | ios::binary | ios::ate)
@@ -264,7 +242,6 @@ namespace Model2Json
 
             aiMaterial* m = mScene->mMaterials[i];
 
-            string map;
             aiString s;
             if(AI_SUCCESS == m->Get(AI_MATKEY_NAME, s))
             {
@@ -275,50 +252,43 @@ namespace Model2Json
             if(AI_SUCCESS == m->Get(AI_MATKEY_TEXTURE_DIFFUSE(0), s))
             {
                 Value diffuseMap;
-                ParserTextureName(s.data, map);
-                diffuseMap.SetString(map.c_str(), map.size(), mAl);
+                diffuseMap.SetString(mScene->GetShortFilename(s.data), mAl);
                 data.AddMember("diffuseMap", diffuseMap, mAl);
             }
             if(AI_SUCCESS == m->Get(AI_MATKEY_TEXTURE_AMBIENT(0), s))
             {
                 Value ambientMap;
-                ParserTextureName(s.data, map);
-                ambientMap.SetString(map.c_str(), map.size(), mAl);
+                ambientMap.SetString(mScene->GetShortFilename(s.data), mAl);
                 data.AddMember("diffuseMap", ambientMap, mAl);
             }
             if(AI_SUCCESS == m->Get(AI_MATKEY_TEXTURE_SPECULAR(0), s))
             {
                 Value specularMap;
-                ParserTextureName(s.data, map);
-                specularMap.SetString(map.c_str(), map.size(), mAl);
+                specularMap.SetString(mScene->GetShortFilename(s.data), mAl);
                 data.AddMember("diffuseMap", specularMap, mAl);
             }
             if(AI_SUCCESS == m->Get(AI_MATKEY_TEXTURE_SHININESS(0), s))
             {
                 Value shininessMap;
-                ParserTextureName(s.data, map);
-                shininessMap.SetString(map.c_str(), map.size(), mAl);
+                shininessMap.SetString(mScene->GetShortFilename(s.data), mAl);
                 data.AddMember("diffuseMap", shininessMap, mAl);
             }
             if(AI_SUCCESS == m->Get(AI_MATKEY_TEXTURE_OPACITY(0), s))
             {
                 Value opacityMap;
-                ParserTextureName(s.data, map);
-                opacityMap.SetString(map.c_str(), map.size(), mAl);
+                opacityMap.SetString(mScene->GetShortFilename(s.data), mAl);
                 data.AddMember("diffuseMap", opacityMap, mAl);
             }
             if(AI_SUCCESS == m->Get(AI_MATKEY_TEXTURE_HEIGHT(0), s))
             {
                 Value opacityMap;
-                ParserTextureName(s.data, map);
-                opacityMap.SetString(map.c_str(), map.size(), mAl);
+                opacityMap.SetString(mScene->GetShortFilename(s.data), mAl);
                 data.AddMember("diffuseMap", opacityMap, mAl);
             }
             if(AI_SUCCESS == m->Get(AI_MATKEY_TEXTURE_NORMALS(0), s))
             {
                 Value opacityMap;
-                ParserTextureName(s.data, map);
-                opacityMap.SetString(map.c_str(), map.size(), mAl);
+                opacityMap.SetString(mScene->GetShortFilename(s.data), mAl);
                 data.AddMember("diffuseMap", opacityMap, mAl);
             }
 
@@ -406,6 +376,15 @@ namespace Model2Json
         color.PushBack(c->b, mAl);
 
         return color;
+    }
+
+    void JsonExporter::WriteTextureBinary(aiTexture* texture)
+    {
+        const char* filename = mScene->GetShortFilename(texture->mFilename.C_Str());
+        auto* data = reinterpret_cast<uint8_t*>(texture->pcData);
+        fstream out(filename, ios::out | ios::binary);
+        out.write((char*) data, texture->mWidth);
+        out.close();
     }
 
     void JsonExporter::Save()

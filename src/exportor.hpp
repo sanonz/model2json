@@ -58,6 +58,8 @@ namespace Model2Json
         Value MakeValue(const aiQuaternion* q);
         Value MakeValue(aiColor4D* c);
 
+        void WriteTextureBinary(aiTexture* texture);
+
     public:
         JsonExporter(string filename);
         ~JsonExporter();
