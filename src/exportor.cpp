@@ -24,7 +24,7 @@ namespace Model2Json
         ParserTextureName(texture->mFilename.C_Str(), filename);
         auto* data = reinterpret_cast<uint8_t*>(texture->pcData);
         fstream out(filename, ios::out | ios::binary);
-        out.write((char*) &data, texture->mWidth);
+        out.write((char*) data, texture->mWidth);
         out.close();
     }
 
@@ -54,8 +54,9 @@ namespace Model2Json
 
     void JsonExporter::ReadFile(string &path)
     {
-        unsigned int flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_FlipUVs;
+        unsigned int flags = aiProcessPreset_TargetRealtime_MaxQuality | aiProcess_FlipUVs;
         Assimp::Importer import;
+        import.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
         const aiScene* scene = import.ReadFile(path, flags);
 
         if (!scene || scene->mFlags == AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
@@ -116,14 +117,14 @@ namespace Model2Json
         SizeType index = nodes.Size();
         nodes.PushBack(object, mAl);
 
-        for(int i = 0; i < node->mNumChildren; i++)
-        {
-            WriteNode(int(index), node->mChildren[i]);
-        }
-
         if (parentIndex != -1)
         {
             nodes[parentIndex]["children"].PushBack(index, mAl);
+        }
+
+        for(int i = 0; i < node->mNumChildren; i++)
+        {
+            WriteNode(int(index), node->mChildren[i]);
         }
     }
 
