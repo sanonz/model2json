@@ -6,6 +6,14 @@ using namespace rapidjson;
 
 namespace Model2Json
 {
+    static void WriteTextureBinary(const char* filename, aiTexture* texture)
+    {
+        auto* data = reinterpret_cast<uint8_t*>(texture->pcData);
+        fstream out(filename, ios::out | ios::binary);
+        out.write((char*) data, texture->mWidth);
+        out.close();
+    }
+
 
     JsonExporter::JsonExporter(string filename)
         : filename(filename + ".json")
@@ -76,10 +84,7 @@ namespace Model2Json
         object.AddMember("rotation", MakeValue(&rotation), mAl);
 
         if (parentIndex == -1) {
-            Value nullType;
-            nullType.SetNull();
-
-            object.AddMember("parent", nullType, mAl);
+            object.AddMember("parent", kNullType, mAl);
         } else {
             object.AddMember("parent", parentIndex, mAl);
         }
@@ -221,10 +226,39 @@ namespace Model2Json
 
     void JsonExporter::WriteTextures()
     {
+        Value& textures = mDoc["textures"];
+
         for(int i = 0; i < mScene->mNumTextures; ++i)
         {
-            aiTexture* texture = mScene->mTextures[i];
-            WriteTextureBinary(texture);
+            aiTexture* tex = mScene->mTextures[i];
+
+            const char* filename = mScene->GetShortFilename(tex->mFilename.C_Str());
+
+            Value texture;
+            texture.SetObject();
+
+            Value file;
+            file.SetObject();
+
+            Value data;
+            data.SetObject();
+
+            file.AddMember("width", tex->mWidth, mAl);
+            file.AddMember("height", tex->mHeight, mAl);
+            file.AddMember("size", tex->mWidth, mAl);
+            file.AddMember("url", StringRef(filename), mAl);
+
+            data.AddMember("flipY", kTrueType, mAl);
+            data.AddMember("minFilter", 1008, mAl);
+            data.AddMember("magFilter", 1006, mAl);
+
+            texture.AddMember("name", StringRef(filename), mAl);
+            texture.AddMember("file", file, mAl);
+            texture.AddMember("data", data, mAl);
+
+            textures.PushBack(texture, mAl);
+
+            WriteTextureBinary(filename, tex);
         }
     }
 
@@ -376,15 +410,6 @@ namespace Model2Json
         color.PushBack(c->b, mAl);
 
         return color;
-    }
-
-    void JsonExporter::WriteTextureBinary(aiTexture* texture)
-    {
-        const char* filename = mScene->GetShortFilename(texture->mFilename.C_Str());
-        auto* data = reinterpret_cast<uint8_t*>(texture->pcData);
-        fstream out(filename, ios::out | ios::binary);
-        out.write((char*) data, texture->mWidth);
-        out.close();
     }
 
     void JsonExporter::Save()
