@@ -105,10 +105,13 @@
           let material;
           if (node.material >= 0) {
             const m = json.materials[node.material];
-            const params = {
-              color: color.setRGB(...m.data.diffuse).getHex(),
-              emissive: color.setRGB(...m.data.emissive).getHex(),
-            };
+            const params = {};
+            if (m.data.code) {
+              params.color = color.setRGB(...m.data.diffuse).getHex();
+            }
+            if (m.data.emissive) {
+              params.color = color.setRGB(...m.data.emissive).getHex();
+            }
 
             if (m.data.diffuseMap) {
               params.map = new THREE.TextureLoader().load('../bin/' + m.data.diffuseMap);
@@ -125,7 +128,7 @@
         object.name = node.name;
         object.scale.set(...node.scale);
         object.position.set(...node.position);
-        object.rotation.set(...node.rotation);
+        object.quaternion.set(...node.rotation);
         node.children.forEach(idx => createObject(json.nodes[idx], object));
         parent.add(object);
       }
