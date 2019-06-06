@@ -6,7 +6,7 @@ using namespace std;
 using namespace Model2Json;
 
 
-string getpwd()
+string getPwd()
 {
     // 获取当前目录
     char dir[100];
@@ -20,18 +20,16 @@ string getpwd()
 }
 
 int main() {
-    string defaultModel = "samples/Door.fbx";
-    string path = getpwd();
-    path.append(defaultModel);
+    string root = getPwd();
+    string modelPath = "samples/Door.fbx";
 
-    // string path;
-    // cout << "Model(" << defaultModel << "):";
-    // cin >> path;
+    // string modelPath;
+    // cout << "Model(" << modelPath << "):";
+    // cin >> modelPath;
 
-    string filename = "model";
-    JsonExporter exporter(filename);
-    exporter.ReadFile(path);
-    exporter.Save();
+    JsonExporter exporter;
+    exporter.ReadFile(root + modelPath);
+    exporter.Save("model.json");
 
     return 0;
 }

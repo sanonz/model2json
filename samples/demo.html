@@ -36,8 +36,8 @@
     // const helper = new THREE.DirectionalLightHelper( light, 5 );
     // scene.add( helper );
 
-    axesHelper = new THREE.AxesHelper( 5 );
-    scene.add( axesHelper );
+    // axesHelper = new THREE.AxesHelper( 5 );
+    // scene.add( axesHelper );
 
     const defaultMaterial = new THREE.MeshStandardMaterial({color: 0xff9300 /*橙色*/});
 
@@ -66,35 +66,25 @@
       5126: Float32Array
     };
 
-    const json = fetch('../bin/model.json').then(response => response.json());
-    const bin = fetch('../bin/model.bin').then(response => response.arrayBuffer())
-    Promise.all([json, bin])
-    .then(([json, buffer]) => {
-      window.buffer = buffer
-      console.log(buffer)
-      // console.log(new Int32Array(buffer, 0, 1))
-      // console.log(new Int32Array(buffer, 4, 1))
-      // console.log(new Int32Array(buffer, 8, 1))
-      // console.log(new Float32Array(buffer, 12, 1))
-      // console.log('"' + new TextDecoder().decode( buffer.slice(0, 4) ) + '"')
-
+    fetch('../bin/model.json')
+    .then(response => response.json())
+    .then((json) => {
       const color = new THREE.Color();
       const node = json.nodes.find(v => v.parent === null);
       createObject(node, scene);
       renderer.render(scene, camera);
-
+window.json=json;
       function createObject(node, parent) {
         let object;
-        const vertex = node.vertex;
-        if (vertex) {
+        if ('vertex' in node) {
+          const vertex = json.vertices[node.vertex];
           const geometry = new THREE.BufferGeometry();
 
           for(let k in vertex) {
             const row = vertex[k];
             const TypeArray = WEBGL_COMPONENT_TYPES[row.type];
-            const length = row.length / TypeArray.BYTES_PER_ELEMENT;
-            const vertices = new TypeArray(buffer, row.offset, length);
-            const attribute = new THREE.BufferAttribute(vertices, row.stride);
+            const vertices = new TypeArray(row.data);
+            const attribute = new THREE.BufferAttribute(vertices, row.stride, false);
             if (k === 'index') {
               geometry.setIndex(attribute);
             } else {
@@ -102,34 +92,45 @@
             }
           }
 
-          let material;
-          if (node.material >= 0) {
-            const m = json.materials[node.material];
-            const params = {};
-            if (m.data.code) {
-              params.color = color.setRGB(...m.data.diffuse).getHex();
-            }
-            if (m.data.emissive) {
-              params.color = color.setRGB(...m.data.emissive).getHex();
-            }
+          const materials = [];
+          if (node.materials && node.materials.length > 0) {
+            node.materials.forEach(idx => {
+              const m = json.materials[idx];
 
-            if (m.data.diffuseMap) {
-              params.map = new THREE.TextureLoader().load('../bin/' + m.data.diffuseMap);
-            }
+              const params = {};
+              if (m.data.diffuse) {
+                params.color = color.setRGB(...m.data.diffuse).getHex();
+              }
+              // if (m.data.emissive) {
+              //   params.color = color.setRGB(...m.data.emissive).getHex();
+              // }
+              if (m.data.diffuseMap) {
+                params.map = new THREE.TextureLoader().load('../bin/' + m.data.diffuseMap);
+              }
 
-            material = new THREE.MeshStandardMaterial(params);
+              const material = new THREE.MeshStandardMaterial(params);
+              materials.push(material);
+            });
           }
 
-          object = new THREE.Mesh(geometry, material || defaultMaterial);
+          if ('groups' in node) {
+            node.groups.forEach(group => {
+              geometry.addGroup(group[0], group[1], group[2]);
+            });
+            object = new THREE.Mesh(geometry, materials);
+          } else {
+            object = new THREE.Mesh(geometry, materials[0] || defaultMaterial);
+          }
+
         } else {
-          object = new THREE.Group();
+          object = new THREE.Object3D();
         }
 
         object.name = node.name;
         object.scale.set(...node.scale);
         object.position.set(...node.position);
         object.quaternion.set(...node.rotation);
-        node.children.forEach(idx => createObject(json.nodes[idx], object));
+        node.name !== 'OutlinerNode' && node.children.forEach(idx => createObject(json.nodes[idx], object));
         parent.add(object);
       }
     });

@@ -1,4 +1,4 @@
-#include "exportor.hpp"
+#include "exportor.h"
 
 using namespace std;
 using namespace rapidjson;
@@ -14,11 +14,55 @@ namespace Model2Json
         out.close();
     }
 
+    ComponentType getComponentType(unsigned int a)
+    {
+        if (a <= COMPONENT_TYPE_BYTE - 1 && a >= -COMPONENT_TYPE_BYTE) {
+            return ComponentType_BYTE;
+        }
+        if (a <= COMPONENT_TYPE_SHORT - 1 && a >= -COMPONENT_TYPE_SHORT) {
+            return ComponentType_SHORT;
+        }
 
-    JsonExporter::JsonExporter(string filename)
-        : filename(filename + ".json")
-        , mBin(filename + ".bin", ios::out | ios::binary | ios::ate)
-        , mDoc()
+        return ComponentType_FLOAT;
+    }
+
+    ComponentType getComponentUnsignedType(unsigned int a)
+    {
+        if (a <= COMPONENT_TYPE_UNSIGNED_BYTE) {
+            return ComponentType_UNSIGNED_BYTE;
+        }
+        if (a <= COMPONENT_TYPE_UNSIGNED_SHORT) {
+            return ComponentType_UNSIGNED_SHORT;
+        }
+        if (a <= COMPONENT_TYPE_UNSIGNED_INT) {
+            return ComponentType_UNSIGNED_INT;
+        }
+    }
+
+    float round(float vertex)
+    {
+        return vertex;
+    }
+
+    int FindIndex(Value& object, float searchElement)
+    {
+        int index = -1;
+
+        for(unsigned int i = 0; i < object.Size(); ++i)
+        {
+            if(object[i] == searchElement)
+            {
+                index = i;
+                break;
+            }
+        }
+
+        return index;
+    }
+
+
+    JsonExporter::JsonExporter()
+        : mDoc()
         , mAl(mDoc.GetAllocator())
         , mScene(nullptr)
     {
@@ -27,6 +71,9 @@ namespace Model2Json
         Value nodes;
         nodes.SetArray();
 
+        Value vertices;
+        vertices.SetArray();
+
         Value textures;
         textures.SetArray();
 
@@ -34,18 +81,19 @@ namespace Model2Json
         materials.SetArray();
 
         mDoc.AddMember("nodes", nodes, mAl);
+        mDoc.AddMember("vertices", vertices, mAl);
         mDoc.AddMember("textures", textures, mAl);
         mDoc.AddMember("materials", materials, mAl);
     }
 
-    void JsonExporter::ReadFile(string &path)
+    void JsonExporter::ReadFile(const string &path)
     {
-        unsigned int flags = aiProcessPreset_TargetRealtime_MaxQuality | aiProcess_FlipUVs;
+        unsigned int flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_FlipUVs;
         Assimp::Importer import;
-        import.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
+        // import.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
         const aiScene* scene = import.ReadFile(path, flags);
 
-        if (!scene || scene->mFlags == AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
+        if(!scene || scene->mFlags == AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
         {
             cout << "ERROR::ASSIMP::" << import.GetErrorString () << endl;
         } else {
@@ -57,11 +105,13 @@ namespace Model2Json
         }
     }
 
-    void JsonExporter::WriteNodes()  {
+    void JsonExporter::WriteNodes()
+    {
         WriteNode(-1, mScene->mRootNode);
     }
 
-    void JsonExporter::WriteNode(int parentIndex, aiNode* node) {
+    void JsonExporter::WriteNode(int parentIndex, aiNode* node)
+    {
         Value& nodes = mDoc["nodes"];
 
         Value object;
@@ -83,7 +133,8 @@ namespace Model2Json
         object.AddMember("position", MakeValue(&position), mAl);
         object.AddMember("rotation", MakeValue(&rotation), mAl);
 
-        if (parentIndex == -1) {
+        if(parentIndex == -1)
+        {
             object.AddMember("parent", kNullType, mAl);
         } else {
             object.AddMember("parent", parentIndex, mAl);
@@ -91,137 +142,185 @@ namespace Model2Json
 
         object.AddMember("children", children, mAl);
 
-        for(int i = 0; i < node->mNumMeshes; i++)
-        {
-            aiMesh* mesh = mScene->mMeshes[node->mMeshes[i]];
-            WriteVertex(object, mesh);
-        }
+        WriteNodeVertices(object, node);
 
         SizeType index = nodes.Size();
         nodes.PushBack(object, mAl);
 
-        if (parentIndex != -1)
+        if(parentIndex != -1)
         {
             nodes[parentIndex]["children"].PushBack(index, mAl);
         }
 
-        for(int i = 0; i < node->mNumChildren; i++)
+        for(int i = 0; i < node->mNumChildren; ++i)
         {
             WriteNode(int(index), node->mChildren[i]);
         }
     }
 
-    void JsonExporter::WriteVertex(Value& object, aiMesh* mesh)
+    void JsonExporter::WriteNodeVertices(Value& object, aiNode* node)
     {
-        Value vertex;
-        vertex.SetObject();
-
-        Value index;
-        index.SetObject();
-
-        Value position;
-        position.SetObject();
-
-        WriteVertices(index, mesh->mNumFaces, mesh->mFaces);
-        vertex.AddMember("index", index, mAl);
-
-        WriteVertices(position, mesh->mNumVertices, mesh->mVertices);
-        vertex.AddMember("position", position, mAl);
-
-        if (mesh->HasNormals())
+        if(node->mNumMeshes > 0)
         {
-            Value normal;
-            normal.SetObject();
-            WriteVertices(normal, mesh->mNumVertices, mesh->mNormals);
-            vertex.AddMember("normal", normal, mAl);
-        }
+            Value& vertices = mDoc["vertices"];
 
-        if (mesh->HasVertexColors(0))
-        {
-            Value color;
-            color.SetObject();
-            WriteVertices(color, mesh->mNumVertices, mesh->mColors[0]);
-            vertex.AddMember("color", color, mAl);
-        }
+            Value vertex;
+            vertex.SetObject();
 
-        if (mesh->HasTextureCoords(0))
-        {
+            Value index;
+            index.SetObject();
+            Value indexData;
+            indexData.SetArray();
+
+            Value position;
+            position.SetObject();
+            Value positionData;
+            positionData.SetArray();
+
             Value uv;
             uv.SetObject();
-            WriteVertices(uv, mesh->mNumVertices, mesh->mTextureCoords[0]);
-            vertex.AddMember("uv", uv, mAl);
-        }
+            Value uvData;
+            uvData.SetArray();
 
-        object.AddMember("material", mesh->mMaterialIndex, mAl);
-        object.AddMember("vertex", vertex, mAl);
+            Value normal;
+            normal.SetObject();
+            Value normalData;
+            normalData.SetArray();
+
+            Value color;
+            color.SetObject();
+            Value colorData;
+            colorData.SetArray();
+
+            Value materials;
+            materials.SetArray();
+
+            Value groups;
+            groups.SetArray();
+
+            for(unsigned int i = 0; i < node->mNumMeshes; ++i)
+            {
+                unsigned int offset = positionData.Size() / 3;
+                aiMesh* mesh = mScene->mMeshes[node->mMeshes[i]];
+
+                if(node->mNumMeshes > 1)
+                {
+                    WriteNodeGroup(groups, indexData.Size(), mesh->mNumFaces * 3, i);
+                }
+
+                WriteMeshIndices(indexData, mesh->mNumFaces, mesh->mFaces, offset);
+                WriteMeshVertices(positionData, mesh->mNumVertices, mesh->mVertices);
+
+                if(mesh->HasNormals())
+                {
+                    WriteMeshVertices(normalData, mesh->mNumVertices, mesh->mNormals);
+                }
+
+                if(mesh->HasTextureCoords(0))
+                {
+                    for(unsigned int j = 0; j < mesh->mNumVertices; ++j)
+                    {
+                        uvData.PushBack(round(mesh->mTextureCoords[0][j].x), mAl);
+                        uvData.PushBack(round(mesh->mTextureCoords[0][j].y), mAl);
+                    }
+                }
+
+                if(mesh->HasVertexColors(0))
+                {
+                    WriteMeshVertices(colorData, mesh->mNumVertices, mesh->mColors[0]);
+                }
+
+                materials.PushBack(mesh->mMaterialIndex, mAl);
+            }
+
+            object.AddMember("vertex", vertices.Size(), mAl);
+
+            ComponentType indexType = getComponentUnsignedType(indexData.Size());
+            WriteNodeVertex(index, 1, indexType, indexData);
+            vertex.AddMember("index", index, mAl);
+
+            WriteNodeVertex(position, 3, ComponentType_FLOAT, positionData);
+            vertex.AddMember("position", position, mAl);
+
+            if(!normalData.Empty())
+            {
+                WriteNodeVertex(normal, 3, ComponentType_FLOAT, normalData);
+                vertex.AddMember("normal", normal, mAl);
+            }
+
+            if(!uvData.Empty())
+            {
+                WriteNodeVertex(uv, 2, ComponentType_FLOAT, uvData);
+                vertex.AddMember("uv", uv, mAl);
+            }
+
+            if(!colorData.Empty())
+            {
+                WriteNodeVertex(color, 4, ComponentType_UNSIGNED_BYTE, colorData);
+                vertex.AddMember("color", color, mAl);
+            }
+
+            if(node->mNumMeshes > 1)
+            {
+                object.AddMember("groups", groups, mAl);
+            }
+
+            vertices.PushBack(vertex, mAl);
+            object.AddMember("materials", materials, mAl);
+        }
     }
 
-    void JsonExporter::WriteVertices(Value& object, unsigned& count, aiFace* list)
+    void JsonExporter::WriteNodeVertex(Value& object, unsigned int stride, ComponentType type, Value& data)
     {
-        int offset = mSize, length = 0;
+        object.AddMember("stride", stride, mAl);
+        object.AddMember("type", type, mAl);
+        object.AddMember("data", data, mAl);
+    }
 
-        for(int i = 0; i < count; ++i)
+    void JsonExporter::WriteNodeGroup(Value& object, unsigned int start, unsigned int count, unsigned int materialIndex)
+    {
+        Value group;
+        group.SetArray();
+
+        group.PushBack(start, mAl);
+        group.PushBack(count, mAl);
+        group.PushBack(materialIndex, mAl);
+
+        object.PushBack(group, mAl);
+    }
+
+    void JsonExporter::WriteMeshIndices(Value& object, unsigned int count, aiFace* faces, unsigned int offset)
+    {
+        for(unsigned int i = 0; i < count; ++i)
         {
-            aiFace face = list[i];
+            aiFace& face = faces[i];
 
-            for(int j = 0; j < face.mNumIndices; ++j)
+            for(unsigned int j = 0; j < face.mNumIndices; ++j)
             {
-                unsigned short point = face.mIndices[j];
-                int size = sizeof(point);
-                mBin.write((const char*) &point, size);
-                length += size;
+                object.PushBack(face.mIndices[j] + offset, mAl);
             }
         }
-
-        mSize += length;
-        WriteVertexMeta(object, ComponentType_UNSIGNED_SHORT, 1, offset, length);
     }
 
-    void JsonExporter::WriteVertices(Value& object, unsigned& count, aiVector3D* list)
+    void JsonExporter::WriteMeshVertices(Value& object, unsigned int count, aiVector3D* vectors)
     {
-        int offset = mSize;
-        int size = sizeof(float);
-        int length = size * count * 3;
-
-        for(int i = 0; i < count; ++i)
+        for(unsigned int i = 0; i < count; ++i)
         {
-            aiVector3D vertex = list[i];
-
-            mBin.write((const char*) &vertex.x, size);
-            mBin.write((const char*) &vertex.y, size);
-            mBin.write((const char*) &vertex.z, size);
+            object.PushBack(round(vectors[i].x), mAl);
+            object.PushBack(round(vectors[i].y), mAl);
+            object.PushBack(round(vectors[i].z), mAl);
         }
-
-        mSize += length;
-        WriteVertexMeta(object, ComponentType_FLOAT, 3, offset, length);
     }
 
-    void JsonExporter::WriteVertices(Value& object, unsigned& count, aiColor4D* list)
+    void JsonExporter::WriteMeshVertices(Value& object, unsigned int count, aiColor4D* colors)
     {
-        int offset = mSize;
-        int size = sizeof(int);
-        int length = size * count * 4;
-
-        for(int i = 0; i < count; ++i)
+        for(unsigned int i = 0; i < count; ++i)
         {
-            aiColor4D color = list[i];
-
-            mBin.write((const char*) &color.r, size);
-            mBin.write((const char*) &color.g, size);
-            mBin.write((const char*) &color.b, size);
-            mBin.write((const char*) &color.a, size);
+            object.PushBack(colors[i].r, mAl);
+            object.PushBack(colors[i].g, mAl);
+            object.PushBack(colors[i].b, mAl);
+            object.PushBack(colors[i].a, mAl);
         }
-
-        mSize += length;
-        WriteVertexMeta(object, ComponentType_UNSIGNED_INT, 4, offset, length);
-    }
-
-    void JsonExporter::WriteVertexMeta(Value& object, ComponentType type, int stride, int& offset, int& length)
-    {
-        object.AddMember("type"  , type  , mAl);
-        object.AddMember("stride", stride, mAl);
-        object.AddMember("offset", offset, mAl);
-        object.AddMember("length", length, mAl);
     }
 
     void JsonExporter::WriteTextures()
@@ -412,17 +511,17 @@ namespace Model2Json
         return color;
     }
 
-    void JsonExporter::Save()
+    void JsonExporter::Save(const string& path)
     {
         StringBuffer buffer;
-        // Writer<StringBuffer> writer(buffer);
-        PrettyWriter<StringBuffer> writer(buffer);
-        writer.SetIndent(' ', 2);
+        Writer<StringBuffer> writer(buffer);
+        writer.SetMaxDecimalPlaces(6);
+        // PrettyWriter<StringBuffer> writer(buffer);
+        // writer.SetIndent(' ', 2);
         mDoc.Accept(writer);
         string json = buffer.GetString();
-        cout << json << endl;
 
-        fstream outBin(filename.c_str(), ios::out | ios::ate);
+        fstream outBin(path.c_str(), ios::out | ios::ate);
         outBin.write(json.c_str(), json.size());
         outBin.close();
     }

@@ -1,3 +1,4 @@
+#include <math.h>
 #include <fstream>
 #include <iostream>
 #include <string.h>
@@ -8,6 +9,13 @@
 
 #include <rapidjson/document.h>
 #include <rapidjson/prettywriter.h>
+
+// see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray#TypedArray_objects
+#define COMPONENT_TYPE_BYTE pow(2, 7)
+#define COMPONENT_TYPE_UNSIGNED_BYTE pow(2, 8) - 1
+#define COMPONENT_TYPE_SHORT pow(2, 15)
+#define COMPONENT_TYPE_UNSIGNED_SHORT pow(2, 16) - 1
+#define COMPONENT_TYPE_UNSIGNED_INT pow(2, 32) - 1
 
 
 using namespace std;
@@ -33,10 +41,6 @@ namespace Model2Json
     private:
 
     protected:
-        int mSize = 0;
-
-        string filename;
-        fstream mBin;
         Document mDoc;
         Document::AllocatorType& mAl;
 
@@ -45,11 +49,12 @@ namespace Model2Json
 
         void WriteNodes();
         void WriteNode(int parentIndex, aiNode* node);
-        void WriteVertex(Value& object, aiMesh* mesh);
-        void WriteVertices(Value& object, unsigned& count, aiFace    * list);
-        void WriteVertices(Value& object, unsigned& count, aiVector3D* list);
-        void WriteVertices(Value& object, unsigned& count, aiColor4D * list);
-        void WriteVertexMeta(Value& object, ComponentType type, int stride, int& offset, int& length);
+        void WriteNodeVertices(Value& object, aiNode* node);
+        void WriteNodeVertex(Value& object, unsigned int stride, ComponentType type, Value& data);
+        void WriteNodeGroup(Value& object, unsigned int start, unsigned int count, unsigned int materialIndex);
+        void WriteMeshIndices(Value& object, unsigned int count, aiFace* faces, unsigned int start);
+        void WriteMeshVertices(Value& object, unsigned int count, aiVector3D* vectors);
+        void WriteMeshVertices(Value& object, unsigned int count, aiColor4D* colors);
         void WriteTextures();
         void WriteMaterials();
         void WriteAnimations();
@@ -59,11 +64,11 @@ namespace Model2Json
         Value MakeValue(aiColor4D* c);
 
     public:
-        JsonExporter(string filename);
+        explicit JsonExporter();
         ~JsonExporter();
 
-        void ReadFile(string& path);
-        void Save();
+        void ReadFile(const string& path);
+        void Save(const string& path);
 
     };
 
